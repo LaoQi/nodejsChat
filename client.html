@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta charset="utf-8" />
+		<title>chat</title>
+		<script type="text/javascript">
+			var connection = {};
+			var id = -1;
+			var canvas, context;
+			var Message = [];
+
+			var Chat = {
+				curheight : 12,
+				xpading : 10,
+				msgYpading : 20,
+				lineYpading : 13,
+				nameYpading : 15,
+				textlimit : 60,
+
+				textColor : "#000000",
+				//contruct
+				ctor : function () {
+					this.curheight = 12;
+					context.fillStyle = "#F0F0F0";
+    				context.fillRect(0,0,canvas.width, canvas.height);
+				},
+				receive : function (msg, height) {
+					var nameColor = "#008600";
+					var user = "匿名用户" + msg["s"];
+					if (msg["s"] == "sys") {
+						nameColor = "#FF4500";
+						user = "系统消息";
+					}
+					var h = height + this.msgYpading
+					context.fillStyle = nameColor;
+					context.fillText(user, this.xpading, h);
+
+					h = h + this.nameYpading;
+
+					if (msg["type"] == "init") {
+						id = msg["t"];
+						h = 12;
+						this.ctor();
+					} else if (msg["type"] == "new") {
+						context.fillStyle = "#FF3030";
+						context.fillText("匿名用户" + msg["content"] + " 进入", this.xpading, h);
+					} else if (msg["type"] == "left") {
+						context.fillStyle = "#FF3030";
+						context.fillText("匿名用户" + msg["content"] + " 离开", this.xpading, h);
+					} else if (msg["type"] == "msg") {
+						var n = msg["content"].length;
+						context.fillStyle = this.textColor;
+						for (var i = 0; i < n; i+= this.textlimit) {
+							var end = i + this.textlimit < n ? i + this.textlimit : n;
+							var str = msg["content"].slice(i, end);
+							context.fillText(str, this.xpading, h);
+							if (end != n) {
+								h = h + this.lineYpading;
+							}
+						}
+					}
+
+					this.curheight = h;
+					if (this.curheight > canvas.height - 20) {
+						this.shift();
+					}
+				},
+				shift : function () {
+					console.log(Message);
+					// if (Message.length > 5) {
+					// 	Message.splice(0, 5);
+					// } else if (Message.length > 3) {
+					// 	Message.splice(0, 3);
+					// } else {
+					// 	Message = [];
+					// }
+					Message.splice(0, 1);
+					console.log(Message);
+					this.curheight = 12;
+					context.fillStyle = "#F0F0F0";
+    				context.fillRect(0,0,canvas.width, canvas.height);
+					for (var m in Message) {
+						console.log(Message[m]);
+						this.receive(Message[m], this.curheight);
+					}
+				}
+			};
+
+			var Init = function () {
+				document.onkeydown = function (event) {
+					if (event.keyCode == 13) {
+						Send();
+					}
+				};
+				document.getElementById("textIn").focus();
+				// init canvas
+				canvas = document.getElementById('canvas');
+				context = canvas.getContext("2d");
+				Chat.ctor();
+
+			    // if user is running mozilla then use it's built-in WebSocket
+			    window.WebSocket = window.WebSocket || window.MozWebSocket;
+
+			    // connection = new WebSocket('ws://104.236.211.156:1337', 'echo-protocol');
+			    connection = new WebSocket('ws://127.0.0.1:1337', 'echo-protocol');
+
+			    connection.onopen = function () {
+			        // connection is opened and ready to use
+			        console.log("connect is open")
+			    };
+
+			    connection.onerror = function (error) {
+			        // an error occurred when sending/receiving data
+			        console.log("connect is error")
+			    };
+
+			    connection.onmessage = function (message) {
+			        // try to decode json (I assume that each message from server is json)
+			        try {
+			            var json = JSON.parse(message.data);
+			            //first connect
+			            console.log(json);
+			            Message.push(json);
+			            Chat.receive(json, Chat.curheight);
+
+			        } catch (e) {
+			        	console.log(e);
+			            // console.log('This doesn\'t look like a valid JSON: ', message.data);
+			            return;
+			        }
+			        // handle incoming message
+			    };
+
+			    connection.onclose = function () {
+			    	console.log("connection is closed!")
+			    }
+			};
+			var Send = function () {
+				var ele = document.getElementById("textIn");
+				var str = ele.value;
+				ele.value = "";
+				if (str) {
+					var json = '{"s":' +  id + ', "content":"' + str + '", "t" : "all"}';
+					if (connection) {
+						connection.send(json);
+					}	
+				}
+				
+			};
+
+		</script>
+	</head>
+	<body onload="Init();">
+		<canvas id="canvas" width="640" height="480">垃圾浏览器不支持canvas！</canvas>
+		<p>
+			<input type="text" id="textIn" style="width:550px" /><button onclick="Send();">commit</button>
+		</p>
+	</body>
+</html>
